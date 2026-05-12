@@ -164,6 +164,34 @@ describe("ProxmoxClient", () => {
     expect(new Headers(calls[0]?.init?.headers).get("content-type")).toBeNull();
   });
 
+  it("reads storage config and zfs pool details", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new ProxmoxClient({
+      baseUrl: "https://proxmox.example",
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init });
+        if (String(url).endsWith("/api2/json/storage/tank")) {
+          return json({ storage: "tank", type: "zfspool", content: "rootdir" });
+        }
+        return json({ name: "tank", state: "ONLINE" });
+      },
+    });
+
+    await expect(client.storageConfig("tank")).resolves.toMatchObject({
+      storage: "tank",
+      type: "zfspool",
+    });
+    await expect(client.zfsPool("pve", "tank")).resolves.toMatchObject({
+      name: "tank",
+      state: "ONLINE",
+    });
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://proxmox.example/api2/json/storage/tank",
+      "https://proxmox.example/api2/json/nodes/pve/disks/zfs/tank",
+    ]);
+  });
+
   it("raises structured API errors", async () => {
     const client = new ProxmoxClient({
       baseUrl: "https://proxmox.example",

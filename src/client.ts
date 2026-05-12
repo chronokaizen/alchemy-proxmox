@@ -60,6 +60,39 @@ export interface ProxmoxStorageDownloadUrlOptions {
   readonly verifyCertificates?: boolean;
 }
 
+export interface ProxmoxStorageConfig {
+  readonly storage: string;
+  readonly type: string;
+  readonly content?: string;
+  readonly path?: string;
+  readonly pool?: string;
+  readonly nodes?: string;
+  readonly shared?: number | boolean;
+  readonly disable?: number | boolean;
+  readonly sparse?: number | boolean;
+  readonly mountpoint?: string;
+  readonly digest?: string;
+  readonly [key: string]: unknown;
+}
+
+export interface ProxmoxZfsPoolSummary {
+  readonly name: string;
+  readonly health?: string;
+  readonly size?: number;
+  readonly free?: number;
+  readonly alloc?: number;
+  readonly frag?: number;
+  readonly dedup?: number;
+}
+
+export interface ProxmoxZfsPoolDetail {
+  readonly name: string;
+  readonly state: string;
+  readonly status?: string;
+  readonly scan?: string;
+  readonly errors?: string;
+}
+
 export class ProxmoxApiError extends Error {
   constructor(
     message: string,
@@ -108,8 +141,8 @@ export class ProxmoxClient {
     return this.request<T>("PUT", path, { body });
   }
 
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>("DELETE", path);
+  async delete<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+    return this.request<T>("DELETE", path, { body });
   }
 
   async nextId(): Promise<number> {
@@ -143,6 +176,26 @@ export class ProxmoxClient {
     return this.get<ProxmoxStorageContent[]>(
       `/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/content`,
       { content },
+    );
+  }
+
+  async storageConfigs(type?: "dir" | "zfspool"): Promise<ProxmoxStorageConfig[]> {
+    return this.get<ProxmoxStorageConfig[]>("/storage", { type });
+  }
+
+  async storageConfig(storage: string): Promise<ProxmoxStorageConfig> {
+    return this.get<ProxmoxStorageConfig>(`/storage/${encodeURIComponent(storage)}`);
+  }
+
+  async zfsPools(node: string): Promise<ProxmoxZfsPoolSummary[]> {
+    return this.get<ProxmoxZfsPoolSummary[]>(
+      `/nodes/${encodeURIComponent(node)}/disks/zfs`,
+    );
+  }
+
+  async zfsPool(node: string, name: string): Promise<ProxmoxZfsPoolDetail> {
+    return this.get<ProxmoxZfsPoolDetail>(
+      `/nodes/${encodeURIComponent(node)}/disks/zfs/${encodeURIComponent(name)}`,
     );
   }
 
