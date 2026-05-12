@@ -1,45 +1,15 @@
 # alchemy-proxmox
 
-Alchemy v2 provider for declarative Proxmox VE resources.
+[![npm](https://img.shields.io/npm/v/alchemy-proxmox?style=flat-square&label=alchemy-proxmox)](https://www.npmjs.com/package/alchemy-proxmox)
+[![license](https://img.shields.io/badge/license-MIT-3f5a2a?style=flat-square)](./LICENSE)
 
-This package currently exposes:
+Declarative Proxmox VE infrastructure for [Alchemy v2](https://v2.alchemy.run), built as typed [Effect](https://effect.website) resources.
 
-- `Proxmox.VirtualMachine` for QEMU VMs
-- `Proxmox.Container` for LXC containers
-- `Proxmox.IsoImage` for ISO files on Proxmox storage
-- `Proxmox.ContainerTemplate` for LXC template archives on Proxmox storage
-- `Proxmox.Provider()` as the combined provider layer
-- `Proxmox.providers()` for the Alchemy v2 provider collection layer
-- `ProxmoxClient` for low-level Proxmox API access
+[Alchemy docs](https://v2.alchemy.run) · [Custom providers](https://v2.alchemy.run/guides/custom-provider/) · [Proxmox API viewer](https://pve.proxmox.com/pve-docs/api-viewer/) · [Examples](./examples)
 
-The provider follows the Alchemy v2 resource/provider style used by the built-in AWS and Cloudflare providers: resource constructors are created with `Resource(...)`, lifecycle is implemented with provider layers using `read`, `diff`, `reconcile`, and `delete`, and E2E coverage uses `alchemy/Test/Vitest` with `test.provider(...)`.
+---
 
-## Install
-
-```bash
-npm install alchemy-proxmox alchemy effect
-```
-
-## Credentials
-
-Use an API token where possible:
-
-```bash
-export PROXMOX_URL=https://proxmox.example
-export PROXMOX_API_TOKEN_ID='root@pam!alchemy'
-export PROXMOX_API_TOKEN_SECRET='...'
-```
-
-Ticket auth is also supported:
-
-```bash
-export PROXMOX_URL=https://proxmox.example
-export PROXMOX_USERNAME=root
-export PROXMOX_PASSWORD='...'
-export PROXMOX_REALM=pam
-```
-
-## Example
+Create Proxmox guests and storage media from the same Alchemy stack:
 
 ```ts
 import * as Alchemy from "alchemy";
@@ -50,117 +20,193 @@ import { Proxmox } from "alchemy-proxmox";
 export default Alchemy.Stack(
   "Homelab",
   {
-    providers: Proxmox.providers(),
+    providers: Proxmox.providers({ successExitStatuses: ["OK", "WARNINGS: 1"] }),
     state: Alchemy.localState(),
   },
   Effect.gen(function* () {
-    const vm = yield* Proxmox.VirtualMachine("WebVm", {
+    const iso = yield* Proxmox.IsoImage("CachyOsIso", {
       node: "proxmox",
-      name: "web-01",
-      memory: 2048,
+      storage: "local",
+      filename: "cachyos-desktop-linux-260426.iso",
+      url: "https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso",
+      deleteOnDestroy: true,
+      taskTimeoutMs: 900_000,
+    });
+
+    const vm = yield* Proxmox.VirtualMachine("CachyOsVm", {
+      node: "proxmox",
+      name: "alchemy-cachyos",
+      memory: 4096,
       cores: 2,
-      scsi0: "local-lvm:32",
+      scsi0: "vault-vm:32",
+      ide2: Output.interpolate`${iso.volid},media=cdrom`,
+      boot: "order=ide2;scsi0",
+      ostype: "l26",
       net0: "virtio,bridge=vmbr0",
-      tags: ["alchemy", "vm"],
+      tags: ["alchemy", "vm", "cachyos"],
     });
 
-    const container = yield* Proxmox.Container("WorkerLxc", {
-      node: "proxmox",
-      hostname: "worker-01",
-      ostemplate: "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst",
-      storage: "local-lvm",
-      rootfs: "local-lvm:8",
-      memory: 512,
-      net0: "name=eth0,bridge=vmbr0,ip=dhcp",
-      unprivileged: true,
-      tags: ["alchemy", "lxc"],
-    });
-
-    return { vm, container };
+    return { iso, vm };
   }),
 );
 ```
 
+One stack owns the storage media, VM config, dependency ordering, state, and destroy behavior.
+
+---
+
+## Resources
+
+| Resource | Proxmox API area | Purpose |
+| --- | --- | --- |
+| `Proxmox.VirtualMachine` | `/nodes/{node}/qemu` | Create, update, adopt, and destroy QEMU VMs. |
+| `Proxmox.Container` | `/nodes/{node}/lxc` | Create, update, adopt, and destroy LXC containers. |
+| `Proxmox.IsoImage` | `/nodes/{node}/storage/{storage}` | Adopt, download, upload, and optionally delete ISO media. |
+| `Proxmox.ContainerTemplate` | `/nodes/{node}/storage/{storage}` | Adopt, download, upload, and optionally delete LXC template archives. |
+| `ProxmoxClient` | `/api2/json` | Low-level typed client for tests and advanced workflows. |
+
+The provider follows the same Alchemy v2 shape as the built-in AWS and Cloudflare providers: resources are declared with `Resource(...)`, providers are wired through a `ProviderCollection`, and lifecycle behavior is implemented with `read`, `diff`, `reconcile`, and `delete`.
+
+## Install
+
+```sh
+npm install alchemy-proxmox alchemy effect
+```
+
+## Credentials
+
+Set `PROXMOX_URL` and either API token credentials or ticket credentials.
+
+API tokens are recommended for automation:
+
+```sh
+export PROXMOX_URL=https://proxmox.example
+export PROXMOX_API_TOKEN_ID='root@pam!alchemy'
+export PROXMOX_API_TOKEN_SECRET='...'
+```
+
+Ticket auth is also supported:
+
+```sh
+export PROXMOX_URL=https://proxmox.example
+export PROXMOX_USERNAME=root
+export PROXMOX_PASSWORD='...'
+export PROXMOX_REALM=pam
+```
+
+Do not commit credentials. Use shell env, CI secrets, or your preferred secret manager.
+
+## Examples
+
+This repository includes three focused example stacks:
+
+```sh
+npm run plan:example:lxc
+npm run deploy:example:lxc
+npm run destroy:example:lxc
+
+npm run plan:example:vm
+npm run deploy:example:vm
+npm run destroy:example:vm
+
+npm run plan:example:cachyos
+npm run deploy:example:cachyos
+npm run destroy:example:cachyos
+```
+
+`examples/lxc.run.ts` creates only an LXC container. `examples/vm.run.ts` creates a basic QEMU VM without install media. `examples/cachyos-iso-vm.run.ts` downloads a CachyOS ISO, creates a VM with that ISO attached as CD-ROM media, and removes both the VM and ISO on destroy.
+
+Common example overrides:
+
+```sh
+export PROXMOX_EXAMPLE_NODE=proxmox
+export PROXMOX_EXAMPLE_VM_STORAGE=vault-vm
+export PROXMOX_EXAMPLE_LXC_STORAGE=vault-lxc
+export PROXMOX_EXAMPLE_ISO_STORAGE=local
+export PROXMOX_EXAMPLE_LXC_PASSWORD='change-me'
+```
+
 ## Storage Media
 
-Proxmox stores install media and container templates as storage content. Directory-backed storage such as `local` commonly supports `iso` and `vztmpl` content, while VM disks and container root filesystems often live on separate storage such as `vault-vm` or `vault-lxc`.
+Proxmox stores install media and container templates as storage content. Directory-backed storage such as `local` commonly supports `iso` and `vztmpl`, while VM disks and container root filesystems often live on storage such as `vault-vm` or `vault-lxc`.
 
-The provider exposes these as declarative resources:
+`IsoImage` and `ContainerTemplate` support three flows:
+
+- Existing file adoption: set `filename` and omit `url` and `path`.
+- Server-side download: set `url`; Proxmox downloads the file through `/nodes/{node}/storage/{storage}/download-url`.
+- Local upload: set `path`; Alchemy uploads the file through `/nodes/{node}/storage/{storage}/upload`.
+
+For manually copied Proxmox files, reference the storage content name, not the host filesystem path. For example:
 
 ```ts
-const iso = yield* Proxmox.IsoImage("CachyOsIso", {
+const iso = yield* Proxmox.IsoImage("UbuntuIso", {
   node: "proxmox",
   storage: "local",
-  filename: "cachyos-desktop-linux-260426.iso",
-  url: "https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso",
-  deleteOnDestroy: true,
-  taskTimeoutMs: 900_000,
-});
-
-const vm = yield* Proxmox.VirtualMachine("CachyOsVm", {
-  node: "proxmox",
-  name: "alchemy-cachyos",
-  memory: 4096,
-  cores: 2,
-  scsi0: "vault-vm:32",
-  ide2: Output.interpolate`${iso.volid},media=cdrom`,
-  boot: "order=ide2;scsi0",
-  ostype: "l26",
-  net0: "virtio,bridge=vmbr0",
+  filename: "ubuntu-24.04.2-live-server-amd64.iso",
 });
 ```
 
-`IsoImage` and `ContainerTemplate` support two creation modes:
+That file resolves to the Proxmox volume ID `local:iso/ubuntu-24.04.2-live-server-amd64.iso`.
 
-- `url`: asks Proxmox to download the file with `/nodes/{node}/storage/{storage}/download-url`.
-- `path`: uploads a local file from the machine running Alchemy with `/nodes/{node}/storage/{storage}/upload`.
+Destroy is conservative by default: storage media is left in place unless `deleteOnDestroy: true` is set. The CachyOS example opts into deletion so a demo deploy/destroy cycle cleans up after itself.
 
-If the file already exists on Proxmox storage, omit `url` and `path` and set `filename`; the resource adopts the existing storage content by `storage + filename`. For manually copied Proxmox files, use the storage filename, not the host filesystem path. For example, an ISO placed in the local ISO directory is referenced as `local:iso/<filename>.iso`, and an LXC template as `local:vztmpl/<template>.tar.zst`.
+## Testing
 
-Destroy is conservative by default: storage media is left in place unless `deleteOnDestroy: true` is set on the media resource.
-The CachyOS example sets `deleteOnDestroy: true`, so destroying that example removes both the VM and the downloaded ISO.
+Run local checks:
 
-Example stacks:
-
-```bash
-npm run plan:example:lxc
-npm run plan:example:vm
-npm run plan:example:cachyos
-```
-
-## Tests
-
-```bash
+```sh
 npm run check
 npm test
 ```
 
-Live Proxmox E2E tests are opt-in:
+Live Proxmox E2E tests are opt-in because they create and destroy real resources:
 
-```bash
+```sh
 export RUN_PROXMOX_E2E=1
 export PROXMOX_E2E_NODE=proxmox
 export PROXMOX_E2E_VM_STORAGE=vault-vm
 export PROXMOX_E2E_LXC_STORAGE=vault-lxc
-export PROXMOX_E2E_LXC_TEMPLATE='local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst'
+export PROXMOX_E2E_LXC_TEMPLATE='local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst'
 npm run test:e2e
 ```
 
-The CachyOS ISO E2E test is separately gated because it downloads a real ISO and creates a real VM:
+The CachyOS ISO E2E is separately gated because it downloads a full ISO and creates a VM:
 
-```bash
+```sh
 export RUN_PROXMOX_CACHYOS_ISO_E2E=1
 export PROXMOX_E2E_ISO_STORAGE=local
 export PROXMOX_E2E_CACHYOS_ISO_URL='https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso'
 npm run test:e2e -- -t 'download CachyOS ISO'
 ```
 
-The LXC E2E test generates an ephemeral root password unless `PROXMOX_E2E_LXC_PASSWORD` is set.
+The E2E suite uses `alchemy/Test/Vitest` and `test.provider(...)`, matching the Alchemy provider testing style. Normal `npm test` keeps live tests skipped unless the gate env vars are set.
 
-For the example deploy, set `PROXMOX_EXAMPLE_LXC_PASSWORD` to control the demo LXC root password. If omitted, the example uses `alchemy-demo-change-me`.
+## Provider Notes
+
+- Proxmox VMIDs are global across QEMU and LXC. The provider retries auto-allocated VMIDs when concurrent creates collide.
+- `/cluster/resources` uses broad filters such as `type=vm`; QEMU and LXC-specific operations use node endpoints like `/nodes/{node}/qemu` and `/nodes/{node}/lxc`.
+- Proxmox storage upload supports `iso`, `vztmpl`, and `import` content. This package exposes ISO and container template resources today.
+- Task waiting accepts `OK` by default. Some Proxmox operations can return warning statuses, so examples use `successExitStatuses: ["OK", "WARNINGS: 1"]`.
 
 ## Publishing
 
-The package includes `prepublishOnly`, which runs type checking, tests, and the build before `npm publish`.
+The package is configured for public npm publishing:
 
-The upstream Alchemy issue for a Proxmox provider was closed as not planned, with maintainers open to linking an unofficial/community provider from the docs once published: https://github.com/alchemy-run/alchemy/issues/1338
+```sh
+npm run check
+npm test
+npm run build
+npm publish --dry-run
+```
+
+`prepublishOnly` runs type checking, tests, and the build before `npm publish`.
+
+The upstream Alchemy Proxmox provider issue was closed as not planned, with maintainers open to linking a community provider once published: https://github.com/alchemy-run/alchemy/issues/1338
+
+## Status
+
+`alchemy` v2 is still in beta. Treat this provider as production-minded but evolving: pin versions, run a plan before deploy, and keep live E2E tests gated behind explicit credentials.
+
+## License
+
+MIT
