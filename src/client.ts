@@ -90,8 +90,22 @@ export class ProxmoxClient {
     return Number(id);
   }
 
-  async resources(type?: "qemu" | "lxc"): Promise<ProxmoxResourceSummary[]> {
+  async resources(
+    type?: "vm" | "storage" | "node" | "sdn",
+  ): Promise<ProxmoxResourceSummary[]> {
     return this.get<ProxmoxResourceSummary[]>("/cluster/resources", { type });
+  }
+
+  async qemu(node: string): Promise<ProxmoxResourceSummary[]> {
+    return this.get<ProxmoxResourceSummary[]>(
+      `/nodes/${encodeURIComponent(node)}/qemu`,
+    );
+  }
+
+  async lxc(node: string): Promise<ProxmoxResourceSummary[]> {
+    return this.get<ProxmoxResourceSummary[]>(
+      `/nodes/${encodeURIComponent(node)}/lxc`,
+    );
   }
 
   async waitForTask(
@@ -162,7 +176,7 @@ export class ProxmoxClient {
     if (!response.ok) {
       const responseText = await response.text();
       throw new ProxmoxApiError(
-        `Proxmox ${method} ${path} failed with ${response.status}`,
+        `Proxmox ${method} ${path} failed with ${response.status}: ${responseText}`,
         response.status,
         responseText,
       );
@@ -215,7 +229,7 @@ export class ProxmoxClient {
     if (!response.ok) {
       const responseText = await response.text();
       throw new ProxmoxApiError(
-        `Proxmox authentication failed with ${response.status}`,
+        `Proxmox authentication failed with ${response.status}: ${responseText}`,
         response.status,
         responseText,
       );

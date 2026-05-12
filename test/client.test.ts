@@ -49,17 +49,36 @@ describe("ProxmoxClient", () => {
       },
     });
 
-    await expect(client.resources("qemu")).resolves.toEqual([
+    await expect(client.resources("vm")).resolves.toEqual([
       { vmid: 100, type: "qemu", node: "pve" },
     ]);
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe(
-      "https://proxmox.example/api2/json/cluster/resources?type=qemu",
+      "https://proxmox.example/api2/json/cluster/resources?type=vm",
     );
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe(
       "PVEAPIToken=root@pam!alchemy=token-secret",
     );
+  });
+
+  it("lists qemu and lxc guests through node endpoints", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new ProxmoxClient({
+      baseUrl: "https://proxmox.example",
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init });
+        return json([]);
+      },
+    });
+
+    await expect(client.qemu("pve/node")).resolves.toEqual([]);
+    await expect(client.lxc("pve/node")).resolves.toEqual([]);
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://proxmox.example/api2/json/nodes/pve%2Fnode/qemu",
+      "https://proxmox.example/api2/json/nodes/pve%2Fnode/lxc",
+    ]);
   });
 
   it("raises structured API errors", async () => {

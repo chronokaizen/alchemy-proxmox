@@ -98,6 +98,8 @@ npm run test:e2e
 
 The LXC E2E test generates an ephemeral root password unless `PROXMOX_E2E_LXC_PASSWORD` is set.
 
+For the example deploy, set `PROXMOX_EXAMPLE_LXC_PASSWORD` to control the demo LXC root password. If omitted, the example uses `alchemy-demo-change-me`.
+
 ## Publishing
 
 The package includes `prepublishOnly`, which runs type checking, tests, and the build before `npm publish`.

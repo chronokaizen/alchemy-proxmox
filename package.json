@@ -35,6 +35,9 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "check": "tsc --noEmit",
+    "deploy:example": "npm run build && alchemy deploy examples/alchemy.run.ts --stage dev",
+    "destroy:example": "npm run build && alchemy destroy examples/alchemy.run.ts --stage dev",
+    "plan:example": "npm run build && alchemy plan examples/alchemy.run.ts --stage dev",
     "test": "vitest run",
     "test:unit": "vitest run test/*.test.ts",
     "test:e2e": "RUN_PROXMOX_E2E=1 vitest run test/e2e/*.test.ts",
@@ -48,7 +51,7 @@
     "@effect/platform-node": "^4.0.0-beta.65",
     "@effect/vitest": "^4.0.0-beta.65",
     "@types/node": "^25.7.0",
-    "alchemy": "^2.0.0-beta.34",
+    "alchemy": "^2.0.0-beta.36",
     "effect": "^4.0.0-beta.65",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",

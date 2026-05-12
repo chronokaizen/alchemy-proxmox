@@ -65,12 +65,20 @@ export const ContainerProvider = (options: ProxmoxProviderOptions = {}) =>
           }
         }),
         read: Effect.fn(function* ({ olds, output }) {
-          const vmid = output?.vmid ?? olds?.vmid;
+          const vmid =
+            output?.vmid ??
+            olds?.vmid ??
+            (yield* findGuestVmid(
+              client,
+              "lxc",
+              olds.node,
+              olds.hostname ?? olds.name,
+            ));
           if (!vmid) return undefined;
           return yield* readContainer(client, olds.node, vmid, output);
         }),
         reconcile: Effect.fn(function* ({ news, output }) {
-          const vmid =
+          let vmid =
             output?.vmid ?? news.vmid ?? (yield* allocateVmid(client));
 
           // Observe — LXC create returns a task, and state writes can fail
@@ -91,13 +99,9 @@ export const ContainerProvider = (options: ProxmoxProviderOptions = {}) =>
               ),
             );
           } else {
-            const upid = yield* request<string>(() =>
-              client.post(
-                `/nodes/${news.node}/lxc`,
-                containerToCreateBody({ ...news, vmid }),
-              ),
-            );
-            yield* waitForTask(client, news.node, upid, news, options);
+            const created = yield* createContainer(client, news, vmid);
+            vmid = created.vmid;
+            yield* waitForTask(client, news.node, created.upid, news, options);
           }
 
           if (news.start) {
@@ -203,6 +207,52 @@ const readContainer = (
   });
 
 const allocateVmid = (client: ProxmoxClient) => request(() => client.nextId());
+
+const createContainer = (
+  client: ProxmoxClient,
+  props: ContainerProps,
+  vmid: number,
+): Effect.Effect<{ readonly upid: string; readonly vmid: number }, unknown> =>
+  request<string>(() =>
+    client.post(
+      `/nodes/${props.node}/lxc`,
+      containerToCreateBody({ ...props, vmid }),
+    ),
+  ).pipe(
+    Effect.map((upid) => ({ upid, vmid })),
+  ).pipe(
+    Effect.catchIf(
+      (error) =>
+        props.vmid === undefined &&
+        error instanceof Error &&
+        /(?:VM|CT) \d+ already exists/i.test(error.message),
+      () =>
+        Effect.gen(function* () {
+          const retryVmid = yield* allocateVmid(client);
+          return yield* createContainer(
+            client,
+            props,
+            retryVmid === vmid ? vmid + 1 : retryVmid,
+          );
+        }),
+    ),
+  );
+
+const findGuestVmid = (
+  client: ProxmoxClient,
+  type: "qemu" | "lxc",
+  node: string,
+  name: string | undefined,
+) =>
+  name
+    ? request(async () => {
+        const resources =
+          type === "qemu" ? await client.qemu(node) : await client.lxc(node);
+        return resources.find(
+          (resource) => resource.name === name,
+        )?.vmid;
+      })
+    : Effect.succeed(undefined);
 
 const waitForTask = (
   client: ProxmoxClient,
