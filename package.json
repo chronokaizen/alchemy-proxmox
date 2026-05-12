@@ -1,0 +1,61 @@
+{
+  "name": "alchemy-proxmox",
+  "version": "0.1.0",
+  "description": "Alchemy v2 provider for declarative Proxmox VE QEMU VMs and LXC containers.",
+  "type": "module",
+  "license": "MIT",
+  "author": "chronokaizen",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chronokaizen/alchemy-proxmox.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chronokaizen/alchemy-proxmox/issues"
+  },
+  "homepage": "https://github.com/chronokaizen/alchemy-proxmox#readme",
+  "keywords": [
+    "alchemy",
+    "alchemy-provider",
+    "proxmox",
+    "proxmox-ve",
+    "infrastructure-as-code",
+    "effect"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run test/*.test.ts",
+    "test:e2e": "RUN_PROXMOX_E2E=1 vitest run test/e2e/*.test.ts",
+    "prepublishOnly": "npm run check && npm run test && npm run build"
+  },
+  "peerDependencies": {
+    "alchemy": ">=2.0.0-beta.34 <3",
+    "effect": ">=4.0.0-beta.60 || >=4.0.0"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "^4.0.0-beta.65",
+    "@effect/vitest": "^4.0.0-beta.65",
+    "@types/node": "^25.7.0",
+    "alchemy": "^2.0.0-beta.34",
+    "effect": "^4.0.0-beta.65",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

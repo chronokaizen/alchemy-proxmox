@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.alchemy/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
