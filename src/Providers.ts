@@ -1,6 +1,12 @@
 import * as Layer from "effect/Layer";
 import * as Provider from "alchemy/Provider";
 import { Container, ContainerProvider } from "./Container.js";
+import {
+  ContainerTemplate,
+  ContainerTemplateProvider,
+  IsoImage,
+  IsoImageProvider,
+} from "./StorageFile.js";
 import { VirtualMachine, VirtualMachineProvider } from "./VirtualMachine.js";
 import type { ProxmoxProviderOptions } from "./config.js";
 
@@ -11,9 +17,14 @@ export class Providers extends Provider.ProviderCollection<Providers>()(
 export const providers = (options: ProxmoxProviderOptions = {}) =>
   Layer.effect(
     Providers,
-    Provider.collection([VirtualMachine, Container]),
+    Provider.collection([VirtualMachine, Container, IsoImage, ContainerTemplate]),
   ).pipe(
     Layer.provide(
-      Layer.mergeAll(VirtualMachineProvider(options), ContainerProvider(options)),
+      Layer.mergeAll(
+        VirtualMachineProvider(options),
+        ContainerProvider(options),
+        IsoImageProvider(options),
+        ContainerTemplateProvider(options),
+      ),
     ),
   );

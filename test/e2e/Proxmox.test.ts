@@ -1,4 +1,5 @@
 import { State } from "alchemy/State";
+import * as Output from "alchemy/Output";
 import * as Test from "alchemy/Test/Vitest";
 import { expect } from "@effect/vitest";
 import * as Data from "effect/Data";
@@ -12,6 +13,9 @@ const hasLiveCredentials =
   !!process.env.PROXMOX_URL &&
   (!!process.env.PROXMOX_API_TOKEN_ID ||
     (!!process.env.PROXMOX_USERNAME && !!process.env.PROXMOX_PASSWORD));
+
+const hasCachyOsIsoE2E =
+  hasLiveCredentials && process.env.RUN_PROXMOX_CACHYOS_ISO_E2E === "1";
 
 const { test } = Test.make({
   providers: Proxmox.providers({ successExitStatuses: ["OK", "WARNINGS: 1"] }),
@@ -209,6 +213,60 @@ test.provider.skipIf(!hasLiveCredentials)(
   { timeout: 180_000 },
 );
 
+test.provider.skipIf(!hasCachyOsIsoE2E)(
+  "download CachyOS ISO and create QEMU VM from it",
+  (stack) =>
+    Effect.gen(function* () {
+      const node = process.env.PROXMOX_E2E_NODE ?? "proxmox";
+      const isoStorage = process.env.PROXMOX_E2E_ISO_STORAGE ?? "local";
+      const vmStorage = process.env.PROXMOX_E2E_VM_STORAGE ?? "vault-vm";
+      const isoUrl =
+        process.env.PROXMOX_E2E_CACHYOS_ISO_URL ??
+        "https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso";
+      const isoFilename =
+        process.env.PROXMOX_E2E_CACHYOS_ISO_FILENAME ??
+        `alchemy-cachyos-${crypto.randomUUID().slice(0, 8)}.iso`;
+
+      yield* stack.destroy();
+
+      const deployed = yield* stack.deploy(
+        Effect.gen(function* () {
+          const iso = yield* Proxmox.IsoImage("CachyOsIso", {
+            node,
+            storage: isoStorage,
+            filename: isoFilename,
+            url: isoUrl,
+            deleteOnDestroy: true,
+            taskTimeoutMs: 900_000,
+          });
+
+          const vm = yield* Proxmox.VirtualMachine("CachyOsVm", {
+            node,
+            name: `alchemy-cachyos-${crypto.randomUUID().slice(0, 8)}`,
+            memory: 4096,
+            cores: 2,
+            scsi0: `${vmStorage}:8`,
+            ide2: Output.interpolate`${iso.volid},media=cdrom`,
+            boot: "order=ide2;scsi0",
+            ostype: "l26",
+            net0: "virtio,bridge=vmbr0",
+            tags: ["alchemy", "e2e", "cachyos"],
+          });
+
+          return { iso, vm };
+        }),
+      );
+
+      expect(deployed.iso.volid).toEqual(`${isoStorage}:iso/${isoFilename}`);
+      expect(deployed.vm.vmid).toBeGreaterThan(0);
+
+      yield* stack.destroy();
+      yield* assertVmDeleted(node, deployed.vm.vmid);
+      yield* assertIsoDeleted(node, isoStorage, deployed.iso.volid);
+    }).pipe(logLevel),
+  { timeout: 1_200_000 },
+);
+
 class VmStillExists extends Data.TaggedError("VmStillExists") {}
 
 class LxcStillExists extends Data.TaggedError("LxcStillExists") {}
@@ -240,5 +298,28 @@ const assertLxcDeleted = Effect.fn(function* (node: string, vmid: number) {
       schedule: Schedule.exponential(100),
     }),
     Effect.catch(() => Effect.void),
+  );
+});
+
+const assertIsoDeleted = Effect.fn(function* (
+  node: string,
+  storage: string,
+  volid: string,
+) {
+  const client = createProxmoxClient();
+  yield* Effect.tryPromise({
+    try: async () => {
+      const files = await client.storageContent(node, storage, "iso");
+      if (files.some((file) => file.volid === volid)) {
+        throw new Error(`ISO ${volid} still exists`);
+      }
+    },
+    catch: (error) => error,
+  }).pipe(
+    Effect.retry({
+      while: (error) =>
+        error instanceof Error && /still exists/i.test(error.message),
+      schedule: Schedule.exponential(100),
+    }),
   );
 });

@@ -33,6 +33,33 @@ export interface ProxmoxResourceSummary {
   readonly status?: string;
 }
 
+export interface ProxmoxStorageContent {
+  readonly volid: string;
+  readonly format: string;
+  readonly size: number;
+  readonly ctime?: number;
+  readonly notes?: string;
+  readonly used?: number;
+  readonly vmid?: number;
+}
+
+export interface ProxmoxStorageUploadOptions {
+  readonly content: "iso" | "vztmpl" | "import";
+  readonly filename: string;
+  readonly file: Blob;
+  readonly checksum?: string;
+  readonly checksumAlgorithm?: "md5" | "sha1" | "sha224" | "sha256" | "sha384" | "sha512";
+}
+
+export interface ProxmoxStorageDownloadUrlOptions {
+  readonly content: "iso" | "vztmpl" | "import";
+  readonly filename: string;
+  readonly url: string;
+  readonly checksum?: string;
+  readonly checksumAlgorithm?: "md5" | "sha1" | "sha224" | "sha256" | "sha384" | "sha512";
+  readonly verifyCertificates?: boolean;
+}
+
 export class ProxmoxApiError extends Error {
   constructor(
     message: string,
@@ -108,6 +135,57 @@ export class ProxmoxClient {
     );
   }
 
+  async storageContent(
+    node: string,
+    storage: string,
+    content?: "iso" | "vztmpl" | "import" | "images" | "rootdir" | "backup",
+  ): Promise<ProxmoxStorageContent[]> {
+    return this.get<ProxmoxStorageContent[]>(
+      `/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/content`,
+      { content },
+    );
+  }
+
+  async uploadStorageFile(
+    node: string,
+    storage: string,
+    options: ProxmoxStorageUploadOptions,
+  ): Promise<string> {
+    const form = new FormData();
+    form.set("content", options.content);
+    form.set("filename", options.file, options.filename);
+    if (options.checksum) {
+      form.set("checksum", options.checksum);
+    }
+    if (options.checksumAlgorithm) {
+      form.set("checksum-algorithm", options.checksumAlgorithm);
+    }
+
+    return this.requestForm<string>(
+      "POST",
+      `/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/upload`,
+      form,
+    );
+  }
+
+  async downloadStorageFileFromUrl(
+    node: string,
+    storage: string,
+    options: ProxmoxStorageDownloadUrlOptions,
+  ): Promise<string> {
+    return this.post<string>(
+      `/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/download-url`,
+      {
+        content: options.content,
+        filename: options.filename,
+        url: options.url,
+        checksum: options.checksum,
+        "checksum-algorithm": options.checksumAlgorithm,
+        "verify-certificates": options.verifyCertificates,
+      },
+    );
+  }
+
   async waitForTask(
     node: string,
     upid: string,
@@ -164,6 +242,35 @@ export class ProxmoxClient {
     if (body) {
       headers.set("content-type", "application/x-www-form-urlencoded");
     }
+
+    await this.authorize(headers, method);
+
+    const response = await this.fetchImpl(url, {
+      method,
+      headers,
+      body,
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new ProxmoxApiError(
+        `Proxmox ${method} ${path} failed with ${response.status}: ${responseText}`,
+        response.status,
+        responseText,
+      );
+    }
+
+    const envelope = (await response.json()) as ProxmoxEnvelope<T>;
+    return envelope.data;
+  }
+
+  private async requestForm<T>(
+    method: string,
+    path: string,
+    body: FormData,
+  ): Promise<T> {
+    const url = new URL(`${this.baseUrl}/api2/json${path}`);
+    const headers = new Headers();
 
     await this.authorize(headers, method);
 

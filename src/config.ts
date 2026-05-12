@@ -26,6 +26,16 @@ export interface ProxmoxGuestAttributes {
   readonly type: "qemu" | "lxc";
 }
 
+export interface ProxmoxStorageFileAttributes {
+  readonly node: string;
+  readonly storage: string;
+  readonly filename: string;
+  readonly volid: string;
+  readonly format: string;
+  readonly size?: number;
+  readonly ctime?: number;
+}
+
 export const tagsToString = (tags: string | string[] | undefined) =>
   Array.isArray(tags) ? tags.join(";") : tags;
 

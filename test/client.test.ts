@@ -81,6 +81,89 @@ describe("ProxmoxClient", () => {
     ]);
   });
 
+  it("lists storage content by content type", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new ProxmoxClient({
+      baseUrl: "https://proxmox.example",
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init });
+        return json([
+          {
+            volid: "local:iso/ubuntu.iso",
+            format: "iso",
+            size: 1024,
+          },
+        ]);
+      },
+    });
+
+    await expect(client.storageContent("pve", "local", "iso")).resolves.toEqual([
+      {
+        volid: "local:iso/ubuntu.iso",
+        format: "iso",
+        size: 1024,
+      },
+    ]);
+
+    expect(calls[0]?.url).toBe(
+      "https://proxmox.example/api2/json/nodes/pve/storage/local/content?content=iso",
+    );
+  });
+
+  it("downloads storage files from URL through Proxmox", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new ProxmoxClient({
+      baseUrl: "https://proxmox.example",
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init });
+        return json("UPID:download");
+      },
+    });
+
+    await expect(
+      client.downloadStorageFileFromUrl("pve", "local", {
+        content: "iso",
+        filename: "ubuntu.iso",
+        url: "https://releases.ubuntu.com/ubuntu.iso",
+        checksum: "abc123",
+        checksumAlgorithm: "sha256",
+        verifyCertificates: false,
+      }),
+    ).resolves.toBe("UPID:download");
+
+    expect(calls[0]?.url).toBe(
+      "https://proxmox.example/api2/json/nodes/pve/storage/local/download-url",
+    );
+    expect(String(calls[0]?.init?.body)).toBe(
+      "content=iso&filename=ubuntu.iso&url=https%3A%2F%2Freleases.ubuntu.com%2Fubuntu.iso&checksum=abc123&checksum-algorithm=sha256&verify-certificates=0",
+    );
+  });
+
+  it("uploads storage files as multipart form data", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new ProxmoxClient({
+      baseUrl: "https://proxmox.example",
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init });
+        return json("UPID:upload");
+      },
+    });
+
+    await expect(
+      client.uploadStorageFile("pve", "local", {
+        content: "vztmpl",
+        filename: "debian.tar.zst",
+        file: new Blob([new Uint8Array([1, 2, 3])]),
+      }),
+    ).resolves.toBe("UPID:upload");
+
+    expect(calls[0]?.url).toBe(
+      "https://proxmox.example/api2/json/nodes/pve/storage/local/upload",
+    );
+    expect(calls[0]?.init?.body).toBeInstanceOf(FormData);
+    expect(new Headers(calls[0]?.init?.headers).get("content-type")).toBeNull();
+  });
+
   it("raises structured API errors", async () => {
     const client = new ProxmoxClient({
       baseUrl: "https://proxmox.example",

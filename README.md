@@ -6,6 +6,8 @@ This package currently exposes:
 
 - `Proxmox.VirtualMachine` for QEMU VMs
 - `Proxmox.Container` for LXC containers
+- `Proxmox.IsoImage` for ISO files on Proxmox storage
+- `Proxmox.ContainerTemplate` for LXC template archives on Proxmox storage
 - `Proxmox.Provider()` as the combined provider layer
 - `Proxmox.providers()` for the Alchemy v2 provider collection layer
 - `ProxmoxClient` for low-level Proxmox API access
@@ -41,6 +43,7 @@ export PROXMOX_REALM=pam
 
 ```ts
 import * as Alchemy from "alchemy";
+import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import { Proxmox } from "alchemy-proxmox";
 
@@ -78,6 +81,51 @@ export default Alchemy.Stack(
 );
 ```
 
+## Storage Media
+
+Proxmox stores install media and container templates as storage content. Directory-backed storage such as `local` commonly supports `iso` and `vztmpl` content, while VM disks and container root filesystems often live on separate storage such as `vault-vm` or `vault-lxc`.
+
+The provider exposes these as declarative resources:
+
+```ts
+const iso = yield* Proxmox.IsoImage("CachyOsIso", {
+  node: "proxmox",
+  storage: "local",
+  filename: "cachyos-desktop-linux-260426.iso",
+  url: "https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso",
+  taskTimeoutMs: 900_000,
+});
+
+const vm = yield* Proxmox.VirtualMachine("CachyOsVm", {
+  node: "proxmox",
+  name: "alchemy-cachyos",
+  memory: 4096,
+  cores: 2,
+  scsi0: "vault-vm:32",
+  ide2: Output.interpolate`${iso.volid},media=cdrom`,
+  boot: "order=ide2;scsi0",
+  ostype: "l26",
+  net0: "virtio,bridge=vmbr0",
+});
+```
+
+`IsoImage` and `ContainerTemplate` support two creation modes:
+
+- `url`: asks Proxmox to download the file with `/nodes/{node}/storage/{storage}/download-url`.
+- `path`: uploads a local file from the machine running Alchemy with `/nodes/{node}/storage/{storage}/upload`.
+
+If the file already exists on Proxmox storage, omit `url` and `path` and set `filename`; the resource adopts the existing storage content by `storage + filename`. For manually copied Proxmox files, use the storage filename, not the host filesystem path. For example, an ISO placed in the local ISO directory is referenced as `local:iso/<filename>.iso`, and an LXC template as `local:vztmpl/<template>.tar.zst`.
+
+Destroy is conservative by default: storage media is left in place unless `deleteOnDestroy: true` is set on the media resource.
+
+Example stacks:
+
+```bash
+npm run plan:example:lxc
+npm run plan:example:vm
+npm run plan:example:cachyos
+```
+
 ## Tests
 
 ```bash
@@ -94,6 +142,15 @@ export PROXMOX_E2E_VM_STORAGE=vault-vm
 export PROXMOX_E2E_LXC_STORAGE=vault-lxc
 export PROXMOX_E2E_LXC_TEMPLATE='local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst'
 npm run test:e2e
+```
+
+The CachyOS ISO E2E test is separately gated because it downloads a real ISO and creates a real VM:
+
+```bash
+export RUN_PROXMOX_CACHYOS_ISO_E2E=1
+export PROXMOX_E2E_ISO_STORAGE=local
+export PROXMOX_E2E_CACHYOS_ISO_URL='https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso'
+npm run test:e2e -- -t 'download CachyOS ISO'
 ```
 
 The LXC E2E test generates an ephemeral root password unless `PROXMOX_E2E_LXC_PASSWORD` is set.
