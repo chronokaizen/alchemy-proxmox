@@ -63,6 +63,8 @@ One stack owns the storage media, VM config, dependency ordering, state, and des
 | `Proxmox.Container` | `/nodes/{node}/lxc` | Create, update, adopt, and destroy LXC containers. |
 | `Proxmox.IsoImage` | `/nodes/{node}/storage/{storage}` | Adopt, download, upload, and optionally delete ISO media. |
 | `Proxmox.ContainerTemplate` | `/nodes/{node}/storage/{storage}` | Adopt, download, upload, and optionally delete LXC template archives. |
+| `Proxmox.Storage` | `/storage` | Create, update, adopt, and destroy Proxmox storage definitions. |
+| `Proxmox.ZfsPool` | `/nodes/{node}/disks/zfs` | Create, adopt, and destroy raw ZFS pools from block devices. |
 | `ProxmoxClient` | `/api2/json` | Low-level typed client for tests and advanced workflows. |
 
 The provider follows the same Alchemy v2 shape as the built-in AWS and Cloudflare providers: resources are declared with `Resource(...)`, providers are wired through a `ProviderCollection`, and lifecycle behavior is implemented with `read`, `diff`, `reconcile`, and `delete`.
@@ -150,6 +152,54 @@ That file resolves to the Proxmox volume ID `local:iso/ubuntu-24.04.2-live-serve
 
 Destroy is conservative by default: storage media is left in place unless `deleteOnDestroy: true` is set. The CachyOS example opts into deletion so a demo deploy/destroy cycle cleans up after itself.
 
+## Storage Definitions
+
+`Proxmox.Storage` manages Proxmox storage configuration: the named storage entries visible under Datacenter -> Storage. This is where you choose what a storage target is allowed to hold.
+
+```ts
+const media = yield* Proxmox.Storage("MediaStorage", {
+  storage: "tank-media",
+  type: "dir",
+  path: "/tank/media",
+  content: ["iso", "vztmpl"],
+  createBasePath: true,
+  createSubdirs: true,
+});
+
+const containers = yield* Proxmox.Storage("ContainerStorage", {
+  storage: "tank-lxc",
+  type: "zfspool",
+  pool: "tank/lxc",
+  content: "rootdir",
+  sparse: false,
+});
+```
+
+Use `type: "zfspool"` for ZFS-backed guest volumes such as `images` and `rootdir`. Use `type: "dir"` for filesystem-backed content such as `iso` and `vztmpl`. If you want ISO/template storage on ZFS, create or mount a ZFS dataset as a directory, then register that path as `type: "dir"` with `content: ["iso", "vztmpl"]`.
+
+## ZFS Pools
+
+`Proxmox.ZfsPool` manages raw ZFS pools through Proxmox's node disk API. This resource is powerful and destructive: it claims real block devices and can wipe them again on destroy when cleanup flags are enabled.
+
+```ts
+const pool = yield* Proxmox.ZfsPool("ScratchPool", {
+  node: "proxmox",
+  name: "scratch",
+  devices: [
+    "/dev/disk/by-id/nvme-example-a",
+    "/dev/disk/by-id/nvme-example-b",
+  ],
+  raidlevel: "mirror",
+  compression: "zstd",
+  ashift: 12,
+  addStorage: false,
+  cleanupConfig: true,
+  cleanupDisks: true,
+});
+```
+
+Keep ZFS pool creation behind explicit review in production. Live E2E for this resource is intentionally not run by default; it needs dedicated scratch disks and will be tackled separately.
+
 ## Testing
 
 Run local checks:
@@ -181,11 +231,15 @@ npm run test:e2e -- -t 'download CachyOS ISO'
 
 The E2E suite uses `alchemy/Test/Vitest` and `test.provider(...)`, matching the Alchemy provider testing style. Normal `npm test` keeps live tests skipped unless the gate env vars are set.
 
+Live ZFS pool creation is deferred until dedicated scratch disks are available. Do not point `Proxmox.ZfsPool` tests at disks that contain data.
+
 ## Provider Notes
 
 - Proxmox VMIDs are global across QEMU and LXC. The provider retries auto-allocated VMIDs when concurrent creates collide.
 - `/cluster/resources` uses broad filters such as `type=vm`; QEMU and LXC-specific operations use node endpoints like `/nodes/{node}/qemu` and `/nodes/{node}/lxc`.
+- Proxmox storage definitions decide allowed content types. For example, `rootdir` is for containers, `images` is for VMs, and `iso` / `vztmpl` are for install media and container templates.
 - Proxmox storage upload supports `iso`, `vztmpl`, and `import` content. This package exposes ISO and container template resources today.
+- `Proxmox.ZfsPool` is lower-level than `Proxmox.Storage`: pool creation owns block devices, while storage configuration tells Proxmox how to use an existing pool or directory.
 - Task waiting accepts `OK` by default. Some Proxmox operations can return warning statuses, so examples use `successExitStatuses: ["OK", "WARNINGS: 1"]`.
 
 ## Publishing
