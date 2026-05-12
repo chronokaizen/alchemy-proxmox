@@ -93,6 +93,7 @@ const iso = yield* Proxmox.IsoImage("CachyOsIso", {
   storage: "local",
   filename: "cachyos-desktop-linux-260426.iso",
   url: "https://mirror.cachyos.org/ISO/desktop/260426/cachyos-desktop-linux-260426.iso",
+  deleteOnDestroy: true,
   taskTimeoutMs: 900_000,
 });
 
@@ -117,6 +118,7 @@ const vm = yield* Proxmox.VirtualMachine("CachyOsVm", {
 If the file already exists on Proxmox storage, omit `url` and `path` and set `filename`; the resource adopts the existing storage content by `storage + filename`. For manually copied Proxmox files, use the storage filename, not the host filesystem path. For example, an ISO placed in the local ISO directory is referenced as `local:iso/<filename>.iso`, and an LXC template as `local:vztmpl/<template>.tar.zst`.
 
 Destroy is conservative by default: storage media is left in place unless `deleteOnDestroy: true` is set on the media resource.
+The CachyOS example sets `deleteOnDestroy: true`, so destroying that example removes both the VM and the downloaded ISO.
 
 Example stacks:
 

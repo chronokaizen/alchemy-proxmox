@@ -22,6 +22,7 @@ export default Alchemy.Stack(
       storage: process.env.PROXMOX_EXAMPLE_ISO_STORAGE ?? "local",
       filename: cachyOsFilename,
       url: cachyOsUrl,
+      deleteOnDestroy: true,
       taskTimeoutMs: 900_000,
     });
 
