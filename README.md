@@ -157,25 +157,47 @@ Destroy is conservative by default: storage media is left in place unless `delet
 `Proxmox.Storage` manages Proxmox storage configuration: the named storage entries visible under Datacenter -> Storage. This is where you choose what a storage target is allowed to hold.
 
 ```ts
-const media = yield* Proxmox.Storage("MediaStorage", {
-  storage: "tank-media",
+const localMedia = yield* Proxmox.Storage("LocalMediaStorage", {
+  storage: "local",
   type: "dir",
-  path: "/tank/media",
+  path: "/var/lib/vz",
   content: ["iso", "vztmpl"],
   createBasePath: true,
   createSubdirs: true,
 });
 
-const containers = yield* Proxmox.Storage("ContainerStorage", {
-  storage: "tank-lxc",
+const tankContainers = yield* Proxmox.Storage("TankContainerStorage", {
+  storage: "tank",
   type: "zfspool",
-  pool: "tank/lxc",
+  pool: "tank",
   content: "rootdir",
+  sparse: false,
+});
+
+const vmDisks = yield* Proxmox.Storage("VmDiskStorage", {
+  storage: "vault-vm",
+  type: "zfspool",
+  pool: "vault/vm",
+  content: "images",
   sparse: false,
 });
 ```
 
-Use `type: "zfspool"` for ZFS-backed guest volumes such as `images` and `rootdir`. Use `type: "dir"` for filesystem-backed content such as `iso` and `vztmpl`. If you want ISO/template storage on ZFS, create or mount a ZFS dataset as a directory, then register that path as `type: "dir"` with `content: ["iso", "vztmpl"]`.
+These examples mirror the current live Proxmox storage configuration:
+
+| Proxmox UI label | API value |
+| --- | --- |
+| Disk image | `images` |
+| ISO image | `iso` |
+| Container template | `vztmpl` |
+| Backup | `backup` |
+| Container | `rootdir` |
+| Snippets | `snippets` |
+| Import | `import` |
+
+Use `type: "zfspool"` for ZFS-backed guest volumes. In the Proxmox UI, `images` is shown as **Disk image** and `rootdir` is shown as **Container**. Your current `tank` storage is a `zfspool` configured with `content: "rootdir"`, so it is currently a container-root storage target. Your current `vault-vm` storage is a `zfspool` configured with `content: "images"`, so it is currently a VM disk storage target.
+
+Use `type: "dir"` for filesystem-backed content such as `iso` and `vztmpl`. In the Proxmox UI, `iso` is **ISO image** and `vztmpl` is **Container template**. Your current `local` storage is a directory storage configured with `content: "iso,vztmpl"`. If you want ISO/template storage on ZFS, create or mount a ZFS dataset as a directory, then register that mounted path as `type: "dir"` with `content: ["iso", "vztmpl"]`. A `dir` storage resource creates/configures the Proxmox storage entry and directories; it does not create the ZFS dataset itself.
 
 ## ZFS Pools
 
