@@ -5,7 +5,7 @@ on:
 
 jobs:
   live-e2e:
-    runs-on: [self-hosted, proxmox-e2e]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 120
     env:
       PROXMOX_URL: ${{ secrets.PROXMOX_BOOTSTRAP_URL }}
