@@ -1,0 +1,20 @@
+[global]
+keyboard = "__PROXMOX_CI_KEYBOARD__"
+country = "__PROXMOX_CI_COUNTRY__"
+fqdn = "__PROXMOX_CI_FQDN__"
+mailto = "__PROXMOX_CI_MAILTO__"
+timezone = "__PROXMOX_CI_TIMEZONE__"
+root-password = "__PROXMOX_CI_ROOT_PASSWORD__"
+reboot-mode = "reboot"
+
+[network]
+source = "__PROXMOX_CI_NETWORK_SOURCE__"
+__PROXMOX_CI_NETWORK_STATIC__
+
+[disk-setup]
+filesystem = "ext4"
+disk-list = ["sda"]
+
+[first-boot]
+source = "from-iso"
+ordering = "network-online"
