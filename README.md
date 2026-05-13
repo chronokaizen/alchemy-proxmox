@@ -255,6 +255,36 @@ The E2E suite uses `alchemy/Test/Vitest` and `test.provider(...)`, matching the 
 
 Live ZFS pool creation is deferred until dedicated scratch disks are available. Do not point `Proxmox.ZfsPool` tests at disks that contain data.
 
+## GitHub Live E2E
+
+The repository includes a manual GitHub Actions workflow at `.github/workflows/live-e2e.yml` for disposable live testing. It dogfoods this provider by creating a nested Proxmox VE host on an existing bootstrap Proxmox cluster, running the live E2E suite against that nested host, and destroying it in an `always()` cleanup step.
+
+The workflow uses the official Proxmox automated installer flow:
+
+1. Render `.github/proxmox-ci/answer.toml.template` and `.github/proxmox-ci/first-boot.sh.template` with GitHub Secrets.
+2. Build a temporary automated installer ISO with `proxmox-auto-install-assistant prepare-iso`.
+3. Upload that ISO with `Proxmox.IsoImage`.
+4. Create and start the nested host with `Proxmox.VirtualMachine`.
+5. Wait for the Cloudflare Tunnel hostname to expose the nested API.
+6. Discover the nested node name and downloaded Debian LXC template.
+7. Run `npm run test:e2e` against the nested host.
+8. Destroy the VM and temporary ISO.
+
+Required GitHub Secrets:
+
+```text
+PROXMOX_BOOTSTRAP_URL
+PROXMOX_BOOTSTRAP_TOKEN_ID
+PROXMOX_BOOTSTRAP_TOKEN_SECRET
+PROXMOX_CI_FQDN
+PROXMOX_CI_ROOT_PASSWORD
+PROXMOX_CI_CLOUDFLARED_TOKEN
+PROXMOX_CI_URL
+PROXMOX_CI_E2E_LXC_PASSWORD
+```
+
+The prepared ISO and rendered secrets are written only under `.generated/proxmox-ci`, which is gitignored. Do not commit generated answer files, first-boot scripts, Cloudflare tunnel tokens, or root passwords.
+
 ## Provider Notes
 
 - Proxmox VMIDs are global across QEMU and LXC. The provider retries auto-allocated VMIDs when concurrent creates collide.

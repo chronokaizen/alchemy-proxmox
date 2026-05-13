@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+LOG_FILE="/var/log/alchemy-proxmox-ci-first-boot.log"
+exec >"$LOG_FILE" 2>&1
+
+echo "Starting alchemy-proxmox CI bootstrap at $(date -Iseconds)"
+
+cat >/etc/apt/sources.list.d/pve-no-subscription.sources <<'EOF'
+Types: deb
+URIs: http://download.proxmox.com/debian/pve
+Suites: trixie
+Components: pve-no-subscription
+Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+EOF
+
+rm -f /etc/apt/sources.list.d/pve-enterprise.sources
+rm -f /etc/apt/sources.list.d/ceph.sources
+
+apt-get update
+apt-get install -y curl ca-certificates jq
+
+pveum acl modify / -user root@pam -role Administrator
+
+pveam update || true
+template="$(pveam available --section system | awk '/debian-.*-standard_.*_amd64.tar.zst/ { print $2 }' | sort -V | tail -n 1)"
+if [ -n "$template" ]; then
+  pveam download local "$template" || true
+fi
+
+if [ -n "__PROXMOX_CI_CLOUDFLARED_TOKEN__" ]; then
+  install -d -m 0755 /usr/share/keyrings
+  curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+    -o /usr/share/keyrings/cloudflare-main.gpg
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+    >/etc/apt/sources.list.d/cloudflared.list
+  apt-get update
+  apt-get install -y cloudflared
+  cloudflared service install "__PROXMOX_CI_CLOUDFLARED_TOKEN__"
+fi
+
+cat >/etc/motd <<'EOF'
+alchemy-proxmox ephemeral CI target.
+This host is provisioned by GitHub Actions and should be destroyed by workflow cleanup.
+EOF
+
+apt-get purge -y proxmox-first-boot || true
+
+echo "Finished alchemy-proxmox CI bootstrap at $(date -Iseconds)"
