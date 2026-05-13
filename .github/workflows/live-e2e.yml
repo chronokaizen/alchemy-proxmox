@@ -81,7 +81,9 @@ jobs:
             '
 
       - name: Deploy nested Proxmox CI host
-        run: npm run deploy:ci-host
+        run: |
+          npm run build
+          ./node_modules/.bin/alchemy deploy examples/ci/proxmox-ci-host.run.ts --stage ci --yes
 
       - name: Wait for nested Proxmox API
         run: |
@@ -155,4 +157,6 @@ jobs:
 
       - name: Destroy nested Proxmox CI host
         if: always()
-        run: npm run destroy:ci-host
+        run: |
+          npm run build
+          ./node_modules/.bin/alchemy destroy examples/ci/proxmox-ci-host.run.ts --stage ci --yes
