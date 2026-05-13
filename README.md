@@ -278,10 +278,15 @@ PROXMOX_BOOTSTRAP_TOKEN_ID
 PROXMOX_BOOTSTRAP_TOKEN_SECRET
 PROXMOX_CI_FQDN
 PROXMOX_CI_ROOT_PASSWORD
+PROXMOX_CI_ADDRESS
+PROXMOX_CI_CIDR
+PROXMOX_CI_DNS
+PROXMOX_CI_GATEWAY
 PROXMOX_CI_CLOUDFLARED_TOKEN
-PROXMOX_CI_URL
 PROXMOX_CI_E2E_LXC_PASSWORD
 ```
+
+`PROXMOX_CI_ADDRESS` is the nested Proxmox IP without CIDR, for example `192.168.50.230`; `PROXMOX_CI_CIDR` is the same address with prefix, for example `192.168.50.230/24`. The workflow runs on a self-hosted runner labeled `proxmox-e2e`, so the nested API can stay LAN-only. `PROXMOX_CI_CLOUDFLARED_TOKEN` is optional when the runner can reach the nested host locally.
 
 The prepared ISO and rendered secrets are written only under `.generated/proxmox-ci`, which is gitignored. Do not commit generated answer files, first-boot scripts, Cloudflare tunnel tokens, or root passwords.
 

@@ -12,6 +12,7 @@ const values = {
   PROXMOX_CI_ROOT_PASSWORD: required("PROXMOX_CI_ROOT_PASSWORD"),
   PROXMOX_CI_CLOUDFLARED_TOKEN:
     process.env.PROXMOX_CI_CLOUDFLARED_TOKEN ?? "",
+  ...networkValues(),
 };
 
 await render(
@@ -44,4 +45,23 @@ function required(name) {
     throw new Error(`${name} is required`);
   }
   return value;
+}
+
+function networkValues() {
+  const cidr = process.env.PROXMOX_CI_CIDR;
+  if (!cidr) {
+    return {
+      PROXMOX_CI_NETWORK_SOURCE: "from-dhcp",
+      PROXMOX_CI_NETWORK_STATIC: "",
+    };
+  }
+
+  return {
+    PROXMOX_CI_NETWORK_SOURCE: "from-answer",
+    PROXMOX_CI_NETWORK_STATIC: [
+      `cidr = "${cidr}"`,
+      `dns = "${required("PROXMOX_CI_DNS")}"`,
+      `gateway = "${required("PROXMOX_CI_GATEWAY")}"`,
+    ].join("\n"),
+  };
 }

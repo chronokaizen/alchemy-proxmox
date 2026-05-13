@@ -5,7 +5,7 @@ on:
 
 jobs:
   live-e2e:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, proxmox-e2e]
     timeout-minutes: 120
     env:
       PROXMOX_URL: ${{ secrets.PROXMOX_BOOTSTRAP_URL }}
@@ -14,7 +14,10 @@ jobs:
       PROXMOX_CI_FQDN: ${{ secrets.PROXMOX_CI_FQDN }}
       PROXMOX_CI_ROOT_PASSWORD: ${{ secrets.PROXMOX_CI_ROOT_PASSWORD }}
       PROXMOX_CI_CLOUDFLARED_TOKEN: ${{ secrets.PROXMOX_CI_CLOUDFLARED_TOKEN }}
-      PROXMOX_CI_URL: ${{ secrets.PROXMOX_CI_URL }}
+      PROXMOX_CI_CIDR: ${{ secrets.PROXMOX_CI_CIDR }}
+      PROXMOX_CI_DNS: ${{ secrets.PROXMOX_CI_DNS }}
+      PROXMOX_CI_GATEWAY: ${{ secrets.PROXMOX_CI_GATEWAY }}
+      PROXMOX_CI_URL: https://${{ secrets.PROXMOX_CI_ADDRESS }}:8006
       PROXMOX_CI_NODE: proxmox
       PROXMOX_CI_ISO_STORAGE: local
       PROXMOX_CI_VM_STORAGE: vault-vm
@@ -139,7 +142,7 @@ jobs:
 
       - name: Run live E2E against nested Proxmox
         env:
-          PROXMOX_URL: ${{ secrets.PROXMOX_CI_URL }}
+          PROXMOX_URL: ${{ env.PROXMOX_CI_URL }}
           PROXMOX_USERNAME: root
           PROXMOX_PASSWORD: ${{ secrets.PROXMOX_CI_ROOT_PASSWORD }}
           PROXMOX_REALM: pam

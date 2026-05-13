@@ -8,7 +8,8 @@ root-password = "__PROXMOX_CI_ROOT_PASSWORD__"
 reboot-mode = "reboot"
 
 [network]
-source = "from-dhcp"
+source = "__PROXMOX_CI_NETWORK_SOURCE__"
+__PROXMOX_CI_NETWORK_STATIC__
 
 [disk-setup]
 filesystem = "ext4"
