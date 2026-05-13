@@ -27,6 +27,7 @@ jobs:
       PROXMOX_CI_ASSET_DIR: .generated/proxmox-ci
       PROXMOX_CI_AUTO_ISO_PATH: .generated/proxmox-ci/proxmox-ve-auto.iso
       PROXMOX_CI_AUTO_ISO_FILENAME: alchemy-proxmox-ci-auto.iso
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
     steps:
       - uses: actions/checkout@v5
 
