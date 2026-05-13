@@ -68,7 +68,7 @@ jobs:
                 >/etc/apt/sources.list.d/proxmox.sources
               apt-get update
               apt-get install -y proxmox-auto-install-assistant
-              curl -fsSL "$PROXMOX_CI_SOURCE_ISO_URL" -o "$PROXMOX_CI_ASSET_DIR/proxmox-ve.iso"
+              curl -fkSL "$PROXMOX_CI_SOURCE_ISO_URL" -o "$PROXMOX_CI_ASSET_DIR/proxmox-ve.iso"
               echo "$PROXMOX_CI_SOURCE_ISO_SHA256  $PROXMOX_CI_ASSET_DIR/proxmox-ve.iso" | sha256sum -c -
               proxmox-auto-install-assistant validate-answer "$PROXMOX_CI_ASSET_DIR/answer.toml"
               proxmox-auto-install-assistant prepare-iso \
