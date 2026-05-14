@@ -43,7 +43,7 @@ export default Alchemy.Stack(
       net0: process.env.PROXMOX_CI_NET0 ?? "virtio,bridge=vmbr0",
       scsi0: `${vmStorage}:${process.env.PROXMOX_CI_VM_DISK_GB ?? 128},discard=on,iothread=1,ssd=1`,
       ide2: Output.interpolate`${iso.volid},media=cdrom`,
-      boot: "order=ide2;scsi0",
+      boot: "order=scsi0;ide2",
       start: true,
       taskTimeoutMs: 1_200_000,
       tags: ["alchemy", "ci", "proxmox"],

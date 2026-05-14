@@ -50,7 +50,11 @@ function required(name) {
 }
 
 function networkValues() {
-  const cidr = process.env.PROXMOX_CI_CIDR;
+  const cidr =
+    process.env.PROXMOX_CI_CIDR ??
+    (process.env.PROXMOX_CI_ADDRESS
+      ? `${process.env.PROXMOX_CI_ADDRESS}/${process.env.PROXMOX_CI_PREFIX ?? "24"}`
+      : undefined);
   if (!cidr) {
     return {
       PROXMOX_CI_NETWORK_SOURCE: "from-dhcp",
