@@ -92,7 +92,7 @@ export const VirtualMachineProvider = (options: ProxmoxProviderOptions = {}) =>
             yield* waitForTask(client, news.node, created.upid, news, options);
           }
 
-          if (news.start) {
+          if (news.start && existing?.status !== "running") {
             const upid = yield* request<string>(() =>
               client.post(`/nodes/${news.node}/qemu/${vmid}/status/start`),
             );
@@ -116,6 +116,13 @@ export const VirtualMachineProvider = (options: ProxmoxProviderOptions = {}) =>
         delete: Effect.fn(function* ({ olds, output }) {
           const existing = yield* readVm(client, olds.node, output.vmid, output);
           if (!existing) return;
+
+          if (existing.status === "running") {
+            const stopUpid = yield* request<string>(() =>
+              client.post(`/nodes/${olds.node}/qemu/${output.vmid}/status/stop`),
+            );
+            yield* waitForTask(client, olds.node, stopUpid, olds, options);
+          }
 
           const upid = yield* request<string>(() =>
             client.delete(`/nodes/${olds.node}/qemu/${output.vmid}`),
