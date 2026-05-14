@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { readFile } from "node:fs/promises";
+import { openAsBlob } from "node:fs";
 import * as Effect from "effect/Effect";
 import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
@@ -231,12 +231,12 @@ const createStorageFile = (
       })
     : props.path
       ? Effect.gen(function* () {
-          const bytes = yield* request(() => readFile(props.path!));
+          const file = yield* request(() => openAsBlob(props.path!));
           return yield* request(() =>
             client.uploadStorageFile(props.node, props.storage, {
               content,
               filename,
-              file: new Blob([bytes]),
+              file,
               checksum: props.checksum,
               checksumAlgorithm: props.checksumAlgorithm,
             }),
