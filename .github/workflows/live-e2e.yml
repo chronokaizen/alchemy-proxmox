@@ -149,6 +149,8 @@ jobs:
       - name: Run live E2E against nested Proxmox
         env:
           PROXMOX_URL: ${{ env.PROXMOX_CI_URL }}
+          PROXMOX_API_TOKEN_ID: ""
+          PROXMOX_API_TOKEN_SECRET: ""
           PROXMOX_USERNAME: root
           PROXMOX_PASSWORD: ${{ secrets.PROXMOX_CI_ROOT_PASSWORD }}
           PROXMOX_REALM: pam
