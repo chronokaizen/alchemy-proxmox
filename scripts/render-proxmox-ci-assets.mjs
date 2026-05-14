@@ -12,8 +12,7 @@ const values = {
   PROXMOX_CI_ROOT_PASSWORD: required("PROXMOX_CI_ROOT_PASSWORD"),
   PROXMOX_CI_CLOUDFLARED_TOKEN:
     process.env.PROXMOX_CI_CLOUDFLARED_TOKEN ?? "",
-  PROXMOX_CI_NETWORK_FILTER_ID_NET_NAME:
-    process.env.PROXMOX_CI_NETWORK_FILTER_ID_NET_NAME ?? "ens18",
+  PROXMOX_CI_NETWORK_FILTER: networkFilter(),
   ...networkValues(),
 };
 
@@ -70,4 +69,13 @@ function networkValues() {
       `gateway = "${required("PROXMOX_CI_GATEWAY")}"`,
     ].join("\n"),
   };
+}
+
+function networkFilter() {
+  const mac = process.env.PROXMOX_CI_MAC_ADDRESS;
+  if (mac) {
+    return `filter.ID_NET_NAME_MAC = "enx${mac.replaceAll(":", "").toLowerCase()}"`;
+  }
+
+  return `filter.ID_NET_NAME = "${process.env.PROXMOX_CI_NETWORK_FILTER_ID_NET_NAME ?? "ens18"}"`;
 }

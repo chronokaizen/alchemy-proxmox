@@ -17,6 +17,7 @@ jobs:
       PROXMOX_CI_CIDR: ${{ secrets.PROXMOX_CI_CIDR }}
       PROXMOX_CI_DNS: ${{ secrets.PROXMOX_CI_DNS }}
       PROXMOX_CI_GATEWAY: ${{ secrets.PROXMOX_CI_GATEWAY }}
+      PROXMOX_CI_MAC_ADDRESS: ${{ secrets.PROXMOX_CI_MAC_ADDRESS }}
       PROXMOX_CI_URL: https://${{ secrets.PROXMOX_CI_ADDRESS }}:8006
       PROXMOX_CI_NODE: proxmox
       PROXMOX_CI_ISO_STORAGE: local

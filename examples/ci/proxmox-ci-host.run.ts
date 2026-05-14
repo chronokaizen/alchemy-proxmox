@@ -12,6 +12,7 @@ const isoPath =
 const isoFilename =
   process.env.PROXMOX_CI_AUTO_ISO_FILENAME ?? "alchemy-proxmox-ci-auto.iso";
 const vmName = process.env.PROXMOX_CI_VM_NAME ?? "alchemy-proxmox-ci";
+const macAddress = process.env.PROXMOX_CI_MAC_ADDRESS ?? "02:AC:10:50:00:01";
 
 export default Alchemy.Stack(
   "ProxmoxCiHost",
@@ -40,7 +41,7 @@ export default Alchemy.Stack(
       sockets: 1,
       ostype: "l26",
       agent: true,
-      net0: process.env.PROXMOX_CI_NET0 ?? "virtio,bridge=vmbr0",
+      net0: process.env.PROXMOX_CI_NET0 ?? `virtio=${macAddress},bridge=vmbr0`,
       scsi0: `${vmStorage}:${process.env.PROXMOX_CI_VM_DISK_GB ?? 128},discard=on,iothread=1,ssd=1`,
       ide2: Output.interpolate`${iso.volid},media=cdrom`,
       boot: "order=scsi0;ide2",

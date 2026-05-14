@@ -9,7 +9,7 @@ reboot-mode = "reboot"
 
 [network]
 source = "__PROXMOX_CI_NETWORK_SOURCE__"
-filter.ID_NET_NAME = "__PROXMOX_CI_NETWORK_FILTER_ID_NET_NAME__"
+__PROXMOX_CI_NETWORK_FILTER__
 __PROXMOX_CI_NETWORK_STATIC__
 
 [disk-setup]
