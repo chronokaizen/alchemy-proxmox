@@ -104,38 +104,58 @@ jobs:
         run: |
           node --input-type=module <<'EOF'
           import { appendFile } from "node:fs/promises";
+          import { setTimeout as sleep } from "node:timers/promises";
 
           const baseUrl = process.env.PROXMOX_CI_URL.replace(/\/+$/, "");
-          const auth = await fetch(`${baseUrl}/api2/json/access/ticket`, {
-            method: "POST",
-            headers: { "content-type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              username: "root@pam",
-              password: process.env.PROXMOX_CI_ROOT_PASSWORD,
-            }),
-          });
-          if (!auth.ok) throw new Error(await auth.text());
-          const ticket = (await auth.json()).data.ticket;
-          const headers = { cookie: `PVEAuthCookie=${ticket}` };
+          let lastError;
 
-          const nodes = await get("/nodes");
-          const node = nodes[0]?.node ?? "pve";
-          const templates = await get(`/nodes/${node}/storage/local/content`, {
-            content: "vztmpl",
-          });
-          const template = templates.find((item) =>
-            item.volid?.includes("debian-"),
-          )?.volid;
-          if (!template) {
-            throw new Error("No Debian container template found on nested Proxmox local storage");
+          for (let attempt = 1; attempt <= 60; attempt++) {
+            try {
+              const headers = await authenticate();
+              const nodes = await get(headers, "/nodes");
+              const node = nodes[0]?.node ?? "pve";
+              const templates = await get(headers, `/nodes/${node}/storage/local/content`, {
+                content: "vztmpl",
+              });
+              const template = templates.find((item) =>
+                item.volid?.includes("debian-"),
+              )?.volid;
+
+              if (template) {
+                await appendFile(
+                  process.env.GITHUB_ENV,
+                  `PROXMOX_E2E_NODE=${node}\nPROXMOX_E2E_LXC_TEMPLATE=${template}\n`,
+                );
+                console.log(`Discovered nested Proxmox node ${node} and template ${template}`);
+                process.exit(0);
+              }
+
+              lastError = new Error("No Debian container template found on nested Proxmox local storage yet");
+            } catch (error) {
+              lastError = error;
+            }
+
+            console.log(`Nested Proxmox defaults not ready yet: ${lastError.message} (attempt ${attempt}/60)`);
+            await sleep(20_000);
           }
 
-          await appendFile(
-            process.env.GITHUB_ENV,
-            `PROXMOX_E2E_NODE=${node}\nPROXMOX_E2E_LXC_TEMPLATE=${template}\n`,
-          );
+          throw lastError ?? new Error("Timed out discovering nested Proxmox defaults");
 
-          async function get(path, query = {}) {
+          async function authenticate() {
+            const response = await fetch(`${baseUrl}/api2/json/access/ticket`, {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                username: "root@pam",
+                password: process.env.PROXMOX_CI_ROOT_PASSWORD,
+              }),
+            });
+            if (!response.ok) throw new Error(`Authentication failed with HTTP ${response.status}: ${await response.text()}`);
+            const ticket = (await response.json()).data.ticket;
+            return { cookie: `PVEAuthCookie=${ticket}` };
+          }
+
+          async function get(headers, path, query = {}) {
             const url = new URL(`${baseUrl}/api2/json${path}`);
             for (const [key, value] of Object.entries(query)) {
               url.searchParams.set(key, value);
